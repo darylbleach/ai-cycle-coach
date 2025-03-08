@@ -39,9 +39,13 @@ else
   echo "Netcat not available, skipping network test"
 fi
 
-# Initialize the database
-echo "Initializing database..."
-./scripts/init-db.sh
+# Initialize the database only if SKIP_DB_INIT is not set to "true"
+if [ "$SKIP_DB_INIT" != "true" ]; then
+  echo "Initializing database..."
+  ./scripts/init-db.sh
+else
+  echo "Skipping database initialization (SKIP_DB_INIT=true)"
+fi
 
 # Start the application
 echo "Starting Next.js application..."

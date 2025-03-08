@@ -17,6 +17,8 @@ services:
       - PYTHON_PATH=/app/venv/bin/python
       # Garmin settings
       - GARMIN_TOKEN_DIR=/app/garmin-tokens
+      # Skip database initialization on startup
+      - SKIP_DB_INIT=true
     volumes:
       # Persist Garmin token files between container restarts
       - garmin-tokens:/app/garmin-tokens
