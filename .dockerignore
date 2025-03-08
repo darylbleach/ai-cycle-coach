@@ -42,4 +42,8 @@ docker-compose.yml
 # Other
 README.md
 LICENSE
-*.md 
+*.md
+
+# Make sure we don't exclude Prisma files
+!prisma/
+!prisma/schema.prisma 

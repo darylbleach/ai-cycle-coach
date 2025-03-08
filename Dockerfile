@@ -1,17 +1,28 @@
 FROM node:18-alpine
 
-# Install Python 3 and pip
-RUN apk add --no-cache python3 py3-pip gcc python3-dev musl-dev
+# Install Python 3, pip and OpenSSL (needed for Prisma)
+RUN apk add --no-cache python3 py3-pip gcc python3-dev musl-dev openssl openssl-dev
 
 # Set working directory
 WORKDIR /app
 
 # Copy package files and install Node dependencies
 COPY package*.json ./
-RUN npm ci
 
 # Create scripts directory first to avoid errors
 RUN mkdir -p ./scripts
+
+# Copy Prisma schema files
+COPY prisma ./prisma/
+
+# Disable Prisma postinstall script temporarily
+ENV PRISMA_SKIP_POSTINSTALL_GENERATE=true
+
+# Install Node dependencies
+RUN npm ci
+
+# Now run Prisma generate explicitly
+RUN npx prisma generate
 
 # Copy Python requirements and install dependencies
 COPY scripts/requirements.txt ./scripts/
