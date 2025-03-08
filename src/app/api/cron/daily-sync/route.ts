@@ -14,9 +14,10 @@ const prisma = new PrismaClient();
 // Use environment variable for Python path or fallback
 const PYTHON_PATH = process.env.PYTHON_PATH || path.join(process.cwd(), 'garmin-env/bin/python');
 
-// This should be a secret key used to authorize cron job requests
-// In production, use an environment variable for this
-const CRON_API_KEY = process.env.CRON_API_KEY || 'your-secure-api-key';
+// Get API keys from environment
+const CRON_API_KEY = process.env.CRON_API_KEY || 'default_cron_api_key_for_dev';
+// Optional key for workout adjustments
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'your_internal_api_key_for_workout_adjustment';
 
 // Maximum number of retry attempts for each user (8 retries = 4 hours total)
 const MAX_RETRY_ATTEMPTS = 8;

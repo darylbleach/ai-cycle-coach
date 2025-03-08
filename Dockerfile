@@ -1,7 +1,7 @@
 FROM node:18-alpine
 
 # Install Python 3, pip and OpenSSL (needed for Prisma)
-RUN apk add --no-cache python3 py3-pip gcc python3-dev musl-dev openssl openssl-dev
+RUN apk add --no-cache python3 py3-pip gcc python3-dev musl-dev openssl openssl-dev bash
 
 # Set working directory
 WORKDIR /app
@@ -42,6 +42,9 @@ ENV GARMIN_TOKEN_DIR=./garmin-tokens
 
 # Update Python path in the API routes to use venv python
 ENV PYTHON_PATH=/app/venv/bin/python
+
+# Add OpenAI API Key placeholder - replace in production environment
+ENV OPENAI_API_KEY="placeholder_key_replace_in_production"
 
 # Build the Next.js application
 RUN npm run build
