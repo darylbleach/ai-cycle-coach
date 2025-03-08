@@ -182,7 +182,9 @@ export async function POST(req: Request) {
       
       // Call the sync script with or without password
       const passwordParam = password ? `"${password}"` : '';
-      const syncCommand = `${process.cwd()}/garmin-env/bin/python scripts/garmin_direct_sync.py "${garminAccount.providerAccountId}" ${requestedDate ? `"${requestedDate}"` : ''} ${passwordParam}`;
+      // Use environment variable for Python path, or fallback to current directory
+      const pythonPath = process.env.PYTHON_PATH || `${process.cwd()}/garmin-env/bin/python`;
+      const syncCommand = `${pythonPath} scripts/garmin_direct_sync.py "${garminAccount.providerAccountId}" ${requestedDate ? `"${requestedDate}"` : ''} ${passwordParam}`;
       console.log(`Garmin Sync: Executing command: ${syncCommand.replace(passwordParam, password ? '"********"' : '')}`);
       
       const { stdout, stderr } = await execAsync(syncCommand);

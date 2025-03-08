@@ -24,9 +24,12 @@ RUN npm ci
 # Now run Prisma generate explicitly
 RUN npx prisma generate
 
-# Copy Python requirements and install dependencies
+# Copy Python requirements and set up virtual environment
 COPY scripts/requirements.txt ./scripts/
-RUN pip3 install --no-cache-dir -r scripts/requirements.txt
+RUN python3 -m venv /app/venv
+ENV PATH="/app/venv/bin:$PATH"
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r scripts/requirements.txt
 
 # Copy the rest of the application
 COPY . .
@@ -36,6 +39,9 @@ RUN mkdir -p ./garmin-tokens && chmod 777 ./garmin-tokens
 
 # Set environment variable for token directory
 ENV GARMIN_TOKEN_DIR=./garmin-tokens
+
+# Update Python path in the API routes to use venv python
+ENV PYTHON_PATH=/app/venv/bin/python
 
 # Build the Next.js application
 RUN npm run build

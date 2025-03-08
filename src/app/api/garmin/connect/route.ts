@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';
+import path from 'path';
 
 const prisma = new PrismaClient();
 
@@ -72,10 +73,15 @@ export async function POST(req: Request) {
         // Continue even if we can't cache the password
       }
       
-      // Execute the Python script for authentication
-      const command = `${process.cwd()}/garmin-env/bin/python scripts/garmin_direct_auth.py "${username}" "${password}"`;
-      console.log(`Garmin Connect: Executing command: ${command.replace(password, '********')}`);
+      // Create token directory if it doesn't exist
+      const tokenPath = path.join(tokenDir, username);
+      await fs.mkdir(path.dirname(tokenPath), { recursive: true });
       
+      // Use environment variable for Python path or fallback
+      const pythonPath = process.env.PYTHON_PATH || `${process.cwd()}/garmin-env/bin/python`;
+      const command = `${pythonPath} scripts/garmin_direct_auth.py "${username}" "${password}"`;
+      
+      // Execute the Python script
       const { stdout, stderr } = await execAsync(command);
       
       if (stderr) {

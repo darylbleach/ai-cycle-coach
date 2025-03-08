@@ -10,8 +10,9 @@ import { format, subDays } from 'date-fns';
 // Force reload of the route
 const execAsync = promisify(exec);
 const prisma = new PrismaClient();
-const TOKEN_DIR = path.join(process.cwd(), 'garmin-tokens');
-const PYTHON_PATH = path.join(process.cwd(), 'garmin-env/bin/python');
+
+// Use environment variable for Python path or fallback
+const PYTHON_PATH = process.env.PYTHON_PATH || path.join(process.cwd(), 'garmin-env/bin/python');
 
 // This should be a secret key used to authorize cron job requests
 // In production, use an environment variable for this
