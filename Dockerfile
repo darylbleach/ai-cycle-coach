@@ -10,7 +10,10 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-# Copy Python requirements and install Python dependencies
+# Create scripts directory first to avoid errors
+RUN mkdir -p ./scripts
+
+# Copy Python requirements and install dependencies
 COPY scripts/requirements.txt ./scripts/
 RUN pip3 install --no-cache-dir -r scripts/requirements.txt
 
