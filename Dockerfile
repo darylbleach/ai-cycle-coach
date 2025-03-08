@@ -1,7 +1,7 @@
 FROM node:18-alpine
 
 # Install Python 3, pip and OpenSSL (needed for Prisma)
-RUN apk add --no-cache python3 py3-pip gcc python3-dev musl-dev openssl openssl-dev bash
+RUN apk add --no-cache python3 py3-pip gcc python3-dev musl-dev openssl openssl-dev bash netcat-openbsd
 
 # Set working directory
 WORKDIR /app
@@ -45,6 +45,12 @@ ENV PYTHON_PATH=/app/venv/bin/python
 
 # Add OpenAI API Key placeholder - replace in production environment
 ENV OPENAI_API_KEY="placeholder_key_replace_in_production"
+
+# Set NODE_ENV for production environment
+ENV NODE_ENV="production"
+
+# Set a default NEXTAUTH_URL (will be overridden by environment)
+ENV NEXTAUTH_URL="https://ai-cycle-coach-cxvg5.ondigitalocean.app"
 
 # Copy initialization scripts
 COPY scripts/init-db.sh ./scripts/

@@ -8,28 +8,15 @@ services:
     ports:
       - "3000:3000"
     env_file:
-      - .env.production
+      - .env.digitalocean
     environment:
-      # Database connection
-      - DATABASE_URL=${DATABASE_URL}
-      # Authentication
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
-      - NEXTAUTH_URL=${NEXTAUTH_URL}
-      # Google OAuth
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      # Garmin settings
-      - GARMIN_TOKEN_DIR=/app/garmin-tokens
-      - GARMIN_API_URL=${GARMIN_API_URL}
-      - GARMIN_API_KEY=${GARMIN_API_KEY}
-      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
-      - USE_SAMPLE_DATA=${USE_SAMPLE_DATA}
-      # OpenAI settings
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      # Cron job settings
-      - CRON_API_KEY=${CRON_API_KEY}
+      # These values override anything in the env_file
+      - NODE_ENV=production
+      - NEXTAUTH_URL=https://ai-cycle-coach-cxvg5.ondigitalocean.app
       # Python path in Docker container
       - PYTHON_PATH=/app/venv/bin/python
+      # Garmin settings
+      - GARMIN_TOKEN_DIR=/app/garmin-tokens
     volumes:
       # Persist Garmin token files between container restarts
       - garmin-tokens:/app/garmin-tokens
