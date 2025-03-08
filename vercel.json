@@ -1,0 +1,27 @@
+{
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "outputDirectory": ".next",
+  "crons": [
+    {
+      "path": "/api/cron/daily-sync",
+      "schedule": "30 6 * * *"
+    }
+  ],
+  "env": {
+    "NEXTAUTH_URL": "${VERCEL_URL}",
+    "CRON_API_KEY": "C8WTAGp7K1PVle2U2/mOsaCVlAC2169l"
+  },
+  "headers": [
+    {
+      "source": "/api/cron/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0"
+        }
+      ]
+    }
+  ]
+} 
