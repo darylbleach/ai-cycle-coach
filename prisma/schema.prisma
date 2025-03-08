@@ -1,0 +1,131 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  ftp           Int?      @default(200) // Functional Threshold Power
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  healthMetrics HealthMetric[]
+  trainingPlans TrainingPlan[]
+  notifications Notification[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model HealthMetric {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date             DateTime
+  sleepHours       Float?
+  sleepScore       Int?
+  trainingReadiness Int?    // Training readiness score (0-100)
+  bodyBattery      Int?
+  hrv              Float?   // Heart Rate Variability in ms
+  avgStressLevel   Int?     // Average stress level (0-100)
+  restingHeartRate Int?
+  vo2max           Float?   // VO2max in ml/kg/min
+  syncedAt         DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([userId, date], name: "userId_date")
+}
+
+model TrainingPlan {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  type        String        // "POWER" or "FITNESS"
+  daysPerWeek Int
+  restDays    Int[]         // Array of integers representing days of the week (0 = Sunday, 6 = Saturday)
+  startDate   DateTime
+  endDate     DateTime?
+  isActive    Boolean       @default(true)
+  intensity   String        @default("MEDIUM") // "EASY", "MEDIUM", or "HARD"
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  workouts    Workout[]
+}
+
+model Workout {
+  id             String       @id @default(cuid())
+  trainingPlanId String
+  trainingPlan   TrainingPlan @relation(fields: [trainingPlanId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?      @db.Text
+  date           DateTime
+  duration       Int          // Duration in minutes
+  segments       Json         // JSON array of workout segments
+  completed      Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // e.g., "workout_adjustment", "recovery_alert", etc.
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([createdAt])
+}

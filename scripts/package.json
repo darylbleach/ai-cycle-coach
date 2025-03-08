@@ -1,0 +1,11 @@
+{
+  "name": "ai-coach-scripts",
+  "version": "1.0.0",
+  "description": "Scripts for AI Coach application",
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "dotenv": "^16.4.7",
+    "node-fetch": "^2.6.9",
+    "pg": "^8.13.3"
+  }
+}

@@ -1,0 +1,7 @@
+fastapi==0.95.1
+uvicorn==0.22.0
+garth==0.4.41
+garminconnect==0.1.56
+python-dotenv==1.0.0
+pydantic==1.10.7
+requests==2.30.0 
