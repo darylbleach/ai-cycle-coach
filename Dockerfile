@@ -46,11 +46,15 @@ ENV PYTHON_PATH=/app/venv/bin/python
 # Add OpenAI API Key placeholder - replace in production environment
 ENV OPENAI_API_KEY="placeholder_key_replace_in_production"
 
+# Make the database initialization script executable
+COPY scripts/init-db.sh ./scripts/
+RUN chmod +x ./scripts/init-db.sh
+
 # Build the Next.js application
 RUN npm run build
 
 # Expose the port the app will run on
 EXPOSE 3000
 
-# Start the application
-CMD ["npm", "start"] 
+# Start the application with database initialization
+CMD ["sh", "-c", "./scripts/init-db.sh && npm start"] 
