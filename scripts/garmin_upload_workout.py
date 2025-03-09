@@ -9,8 +9,16 @@ import sys
 import json
 import logging
 import os
-import inspect
-from garminconnect import Garmin
+from pathlib import Path
+import re
+
+# Import garminconnect library
+try:
+    from garminconnect import Garmin
+    import garth
+except ImportError:
+    print(json.dumps({"status": "error", "error": "Missing required libraries. Please install garminconnect and garth."}))
+    sys.exit(1)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -31,96 +39,113 @@ def main():
         with open(workout_json_file, 'r') as file:
             workout_data = json.load(file)
         
-        logger.info(f"Uploading workout '{workout_data.get('workoutName', 'Unknown')}' for {email}")
+        workout_name = workout_data.get('workoutName', 'Unknown')
+        logger.info(f"Uploading workout '{workout_name}' for {email}")
         
-        # Initialize API client
-        client = Garmin(email)
+        # Create token directory if it doesn't exist
+        token_dir = Path(token_path)
+        token_dir.mkdir(parents=True, exist_ok=True)
         
-        # Attempt to login with token
-        token_file = token_path
-        if os.path.isdir(token_path):
-            token_file = os.path.join(token_path, f"{email}.json")
+        # Determine token file path
+        token_file = token_dir / f"{email}.json"
         
-        logger.info(f"Loading token from {token_file}")
+        logger.info(f"Using token file: {token_file}")
+        
+        # Initialize API client and check if token exists
+        client = None
+        
+        # First try to use garth for authentication (more modern approach)
         try:
-            client.login(tokenstore=token_file)
-            logger.info("Successfully logged in with token")
+            logger.info("Attempting to authenticate with garth...")
+            if os.path.exists(token_file):
+                with open(token_file, 'r') as f:
+                    token_data = json.load(f)
+                
+                # If we have garth token data
+                if 'garth_token' in token_data:
+                    garth_token = token_data.get('garth_token')
+                    garth.resume(garth_token)
+                    logger.info("Authenticated with garth token")
+                    client = Garmin(email)
+                    client.garth = garth
+                    logger.info("Using garth client for API access")
+            
+            if client is None:
+                logger.info("No valid garth token found, trying traditional authentication")
+                # Try traditional login
+                client = Garmin(email)
+                try:
+                    client.login(tokenstore=str(token_file))
+                    logger.info("Successfully logged in with token")
+                except Exception as e:
+                    logger.error(f"Token login failed: {e}")
+                    raise Exception(f"Authentication failed: {e}")
         except Exception as e:
-            logger.error(f"Token login failed: {e}")
-            raise Exception(f"Authentication failed: {e}")
+            logger.error(f"Authentication error: {e}")
+            print(json.dumps({"status": "error", "error": f"Authentication failed: {str(e)}"}))
+            sys.exit(1)
         
-        # Log available methods for debugging
-        methods = [method for method in dir(client) if not method.startswith('_') and callable(getattr(client, method))]
-        logger.info(f"Available methods: {methods}")
+        # Now try to upload the workout
+        logger.info(f"Creating workout: {workout_name}")
         
-        # Try to create workout
-        logger.info(f"Creating workout: {workout_data.get('workoutName', 'Unnamed')}")
-        
-        # First, inspect connectapi to understand its usage
+        # Try connectapi method (should work with newer garminconnect versions)
         try:
-            # Get the signature of connectapi
-            connectapi_sig = inspect.signature(client.connectapi)
-            logger.info(f"connectapi signature: {connectapi_sig}")
+            logger.info("Attempting to create workout with connectapi...")
+            result = client.connectapi(
+                "workout-service/workout", 
+                method="POST", 
+                data=json.dumps(workout_data), 
+                headers={"Content-Type": "application/json"}
+            )
             
-            # CORRECTLY use connectapi with kwargs not positional args
-            logger.info("Attempting to create workout with connectapi")
-            # Note: path is first arg, then we pass data as **kwargs
-            result = client.connectapi("workout-service/workout", 
-                                      method="POST", 
-                                      data=json.dumps(workout_data), 
-                                      headers={"Content-Type": "application/json"})
-            
-            logger.info(f"connectapi result: {result}")
-            success = True
-            
-            # If we get here without an exception, we succeeded
-            print(json.dumps({"status": "success", "workoutId": result.get("workoutId", "unknown")}))
-            return
-            
+            if result and 'workoutId' in result:
+                workout_id = result.get('workoutId')
+                logger.info(f"Workout created successfully with ID: {workout_id}")
+                print(json.dumps({"status": "success", "workoutId": workout_id}))
+                return
+            else:
+                logger.warning(f"Workout creation response didn't contain workoutId: {result}")
+                # Continue to fallback methods
         except Exception as e:
             logger.error(f"Error creating workout with connectapi: {e}")
+            # Continue to fallback methods
             
-            # Try directly inspecting the function
-            logger.info("Inspecting connectapi function")
-            try:
-                source = inspect.getsource(client.connectapi)
-                logger.info(f"connectapi source: {source}")
-            except Exception as es:
-                logger.error(f"Could not get source: {es}")
-        
-        # Fallback: Try to examine existing functions to understand API
+        # Fallback 1: Try direct API call
         try:
-            logger.info("Examining upload_activity for reference")
-            try:
-                source = inspect.getsource(client.upload_activity)
-                logger.info(f"upload_activity source: {source}")
-            except Exception as es:
-                logger.error(f"Could not get source: {es}")
+            logger.info("Fallback 1: Trying direct API call...")
+            if hasattr(client, 'session') and client.session:
+                # Build the URL
+                url = "https://connect.garmin.com/modern/proxy/workout-service/workout"
+                headers = {
+                    "Content-Type": "application/json",
+                    "NK": "NT"  # Required by some Garmin endpoints
+                }
                 
-            # Try to see how downloading works (may give clues about format)
-            logger.info("Examining download_workout for reference")
-            try:
-                source = inspect.getsource(client.download_workout)
-                logger.info(f"download_workout source: {source}")
-            except Exception as es:
-                logger.error(f"Could not get source: {es}")
+                # Make the POST request
+                response = client.session.post(url, headers=headers, json=workout_data)
                 
-            # Try to log what endpoints are used for other operations
-            logger.info("Trying to fetch workout by ID to understand endpoints")
-            # Check if any workout IDs are passed in workout data
-            workout_id = workout_data.get("workoutId")
-            if workout_id:
-                try:
-                    workout = client.get_workout_by_id(workout_id)
-                    logger.info(f"Fetched workout: {workout}")
-                except Exception as e:
-                    logger.error(f"Failed to fetch workout: {e}")
-            
+                if response.status_code in [200, 201]:
+                    result = response.json()
+                    workout_id = result.get('workoutId')
+                    if workout_id:
+                        logger.info(f"Workout created successfully with ID: {workout_id} (fallback 1)")
+                        print(json.dumps({"status": "success", "workoutId": workout_id}))
+                        return
+                    else:
+                        logger.warning(f"Workout creation response didn't contain workoutId: {result}")
+                else:
+                    logger.error(f"Error response from Garmin API: {response.status_code} - {response.text}")
+            else:
+                logger.error("No session available for direct API call")
         except Exception as e:
-            logger.error(f"Failed to examine API: {e}")
-        
-        # If all attempts failed, return a detailed error
-        raise Exception("Failed to create workout. See logs for details.")
+            logger.error(f"Error in fallback 1: {e}")
+            
+        # If we get here, all attempts failed
+        logger.error("All workout creation attempts failed")
+        print(json.dumps({
+            "status": "error", 
+            "error": "Failed to create workout after multiple attempts. Check logs for details."
+        }))
         
     except Exception as e:
         logger.error(f"Error uploading workout: {str(e)}")

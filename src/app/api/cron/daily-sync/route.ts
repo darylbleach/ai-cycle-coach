@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
+import fs from 'fs';
 import { authOptions } from '@/lib/auth';
 import { getServerSession } from 'next-auth/next';
 import { format, subDays } from 'date-fns';
@@ -13,6 +14,7 @@ const prisma = new PrismaClient();
 
 // Use environment variable for Python path or fallback
 const PYTHON_PATH = process.env.PYTHON_PATH || path.join(process.cwd(), 'garmin-env/bin/python');
+const GARMIN_TOKEN_DIR = process.env.GARMIN_TOKEN_DIR || path.join(process.cwd(), 'garmin-tokens');
 
 // Get API keys from environment
 const CRON_API_KEY = process.env.CRON_API_KEY || 'default_cron_api_key_for_dev';
@@ -45,17 +47,24 @@ export async function GET(req: Request) {
     if (isRetry) {
       console.log(`Daily Sync: Retry attempt ${retryCount} for users: ${retryUserIds.join(', ')}`);
     } else {
-      console.log('Daily Sync: Starting cron job for daily Garmin data sync at 7am');
+      console.log('Daily Sync: Starting cron job for daily Garmin data sync');
     }
     
-    // Check for API key in authorization header
-    const apiKey = req.headers.get('X-Cron-API-Key');
+    // Check for API key authorization
+    const apiKey = req.headers.get('X-Cron-API-Key') || req.headers.get('x-cron-api-key');
     if (apiKey !== CRON_API_KEY) {
       console.error('Daily Sync: Unauthorized access attempt with incorrect API key');
+      console.error(`Daily Sync: Received API key: "${apiKey}", Expected: "${CRON_API_KEY}"`);
       return NextResponse.json(
         { message: 'Unauthorized' },
         { status: 401 }
       );
+    }
+    
+    // Ensure token directory exists
+    if (!fs.existsSync(GARMIN_TOKEN_DIR)) {
+      fs.mkdirSync(GARMIN_TOKEN_DIR, { recursive: true });
+      console.log(`Daily Sync: Created Garmin token directory: ${GARMIN_TOKEN_DIR}`);
     }
     
     // Get today's date for syncing current data
@@ -116,79 +125,118 @@ export async function GET(req: Request) {
       try {
         console.log(`Daily Sync: Processing user ${account.userId} with Garmin account ${account.providerAccountId}`);
         
+        // Check if token file exists for this user
+        const tokenFile = path.join(GARMIN_TOKEN_DIR, `${account.providerAccountId}.json`);
+        if (!fs.existsSync(tokenFile)) {
+          console.error(`Daily Sync: Token file not found for user ${account.userId}: ${tokenFile}`);
+          results.failed++;
+          results.errors.push({ 
+            userId: account.userId, 
+            error: `Garmin token file not found: ${tokenFile}`
+          });
+          continue;
+        }
+        
         // Instead of directly calling the Python script, call the Garmin sync API endpoint
         // This uses the same method as the manual sync button
         try {
           console.log(`Daily Sync: Calling Garmin sync API for user ${account.userId}`);
           
-          // Create a server-side fetch request to the Garmin sync API
-          const syncResponse = await fetch(`${baseUrl}/api/garmin/sync`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              // This is a special header to authorize this request as if it were from the user
-              'X-Cron-API-Key': CRON_API_KEY,
-              'X-User-ID': account.userId  // Add user ID for server-side auth
-            },
-            body: JSON.stringify({
-              date: syncDate,
-              userId: account.userId  // Include the user ID in the body as well
-            })
-          });
-          
-          if (!syncResponse.ok) {
-            const errorText = await syncResponse.text();
-            throw new Error(`Sync API returned error: ${syncResponse.status} - ${errorText}`);
-          }
-          
-          const syncResult = await syncResponse.json();
-          console.log(`Daily Sync: Garmin sync API response for user ${account.userId}:`, syncResult);
-          
-          // Check if we have real data
-          const hasRealData = syncResult.hasActualData === true && 
-                              syncResult.validMetricsCount > 0;
-          
-          if (!hasRealData) {
-            console.log(`Daily Sync: No real health data retrieved for user ${account.userId}, marking for retry`);
-            results.needsRetry++;
-            results.usersToRetry.push(account.userId);
-            continue;
-          }
-          
-          console.log(`Daily Sync: Successfully retrieved and stored real data for user ${account.userId}`);
-          results.succeeded++;
-          
-          // If we have a valid training readiness score, adjust today's workouts
-          if (syncResult.data.trainingReadiness) {
-            console.log(`Daily Sync: Adjusting workouts for user ${account.userId} based on training readiness score: ${syncResult.data.trainingReadiness}`);
+          // Try direct Python script execution first (more reliable for cron jobs)
+          try {
+            const scriptPath = path.join(process.cwd(), 'scripts', 'garmin_direct_sync.py');
             
-            // Call the workout adjustment API
-            try {
-              const adjustmentResponse = await fetch(`${baseUrl}/api/training/adjust-workouts`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'X-API-Key': CRON_API_KEY
-                },
-                body: JSON.stringify({
-                  userId: account.userId,
-                  date: syncDate
-                })
-              });
-              
-              if (adjustmentResponse.ok) {
-                const adjustmentResult = await adjustmentResponse.json();
-                console.log(`Daily Sync: Successfully adjusted ${adjustmentResult.adjustedCount} workouts for user ${account.userId}`);
-                results.workoutsAdjusted += adjustmentResult.adjustedCount;
-              } else {
-                const errorText = await adjustmentResponse.text();
-                console.error(`Daily Sync: Failed to adjust workouts for user ${account.userId}:`, errorText);
-              }
-            } catch (error) {
-              console.error(`Daily Sync: Error adjusting workouts for user ${account.userId}:`, error);
+            // Ensure script exists
+            if (!fs.existsSync(scriptPath)) {
+              throw new Error(`Script not found: ${scriptPath}`);
             }
-          } else {
-            console.log(`Daily Sync: No training readiness score available for user ${account.userId}, skipping workout adjustment`);
+            
+            // Build command with absolute paths
+            const command = `${PYTHON_PATH} ${scriptPath} "${account.providerAccountId}" "${GARMIN_TOKEN_DIR}" "${syncDate}"`;
+            console.log(`Daily Sync: Executing command: ${command}`);
+            
+            const { stdout, stderr } = await execAsync(command);
+            
+            if (stderr) {
+              console.error(`Daily Sync: Script error for user ${account.userId}:`, stderr);
+            }
+            
+            console.log(`Daily Sync: Script output for user ${account.userId}:`, stdout);
+            
+            try {
+              const syncResult = JSON.parse(stdout);
+              
+              // Check if we have real data
+              const hasRealData = syncResult.status === 'success' && 
+                                  syncResult.data?.validMetricsCount > 0;
+              
+              if (!hasRealData) {
+                console.log(`Daily Sync: No real health data retrieved for user ${account.userId}, marking for retry`);
+                results.needsRetry++;
+                results.usersToRetry.push(account.userId);
+                continue;
+              }
+              
+              console.log(`Daily Sync: Successfully retrieved and stored real data for user ${account.userId}`);
+              results.succeeded++;
+              
+              // If we have a valid training readiness score, adjust today's workouts
+              if (syncResult.data?.trainingReadiness) {
+                console.log(`Daily Sync: Adjusting workouts for user ${account.userId} based on training readiness score: ${syncResult.data.trainingReadiness}`);
+                await adjustWorkouts(baseUrl, account.userId, syncDate);
+                results.workoutsAdjusted++;
+              }
+            } catch (parseError: unknown) {
+              console.error(`Daily Sync: Failed to parse script output for user ${account.userId}:`, parseError);
+              throw new Error(`Failed to parse script output: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+            }
+          } catch (scriptError) {
+            console.error(`Daily Sync: Direct script execution failed for user ${account.userId}:`, scriptError);
+            console.log(`Daily Sync: Falling back to API call for user ${account.userId}`);
+            
+            // Fallback to API method
+            const syncResponse = await fetch(`${baseUrl}/api/garmin/sync`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                // This is a special header to authorize this request as if it were from the user
+                'X-Cron-API-Key': CRON_API_KEY,
+                'X-User-ID': account.userId  // Add user ID for server-side auth
+              },
+              body: JSON.stringify({
+                date: syncDate,
+                userId: account.userId  // Include the user ID in the body as well
+              })
+            });
+            
+            if (!syncResponse.ok) {
+              const errorText = await syncResponse.text();
+              throw new Error(`Sync API returned error: ${syncResponse.status} - ${errorText}`);
+            }
+            
+            const syncResult = await syncResponse.json();
+            console.log(`Daily Sync: Garmin sync API response for user ${account.userId}:`, syncResult);
+            
+            // Check if we have real data
+            const hasRealData = syncResult.hasActualData === true && 
+                                syncResult.validMetricsCount > 0;
+            
+            if (!hasRealData) {
+              console.log(`Daily Sync: No real health data retrieved for user ${account.userId}, marking for retry`);
+              results.needsRetry++;
+              results.usersToRetry.push(account.userId);
+              continue;
+            }
+            
+            console.log(`Daily Sync: Successfully retrieved and stored real data for user ${account.userId}`);
+            results.succeeded++;
+            
+            // If we have a valid training readiness score, adjust today's workouts
+            if (syncResult.data?.trainingReadiness) {
+              console.log(`Daily Sync: Adjusting workouts for user ${account.userId} based on training readiness score: ${syncResult.data.trainingReadiness}`);
+              await adjustWorkouts(baseUrl, account.userId, syncDate);
+              results.workoutsAdjusted++;
+            }
           }
         } catch (error) {
           console.error(`Daily Sync: Error calling Garmin sync API for user ${account.userId}:`, error);
@@ -248,13 +296,44 @@ export async function GET(req: Request) {
       retryCount,
       retryScheduled: results.usersToRetry.length > 0 && (retryCount < MAX_RETRY_ATTEMPTS)
     }, { status: 200 });
+    
   } catch (error) {
-    console.error('Daily Sync: Error in cron job:', error);
+    console.error('Daily Sync: Uncaught error in cron job:', error);
     return NextResponse.json(
-      { message: 'Failed to execute daily sync: ' + (error instanceof Error ? error.message : String(error)) },
+      { message: 'Error in daily sync cron job', error: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   } finally {
     await prisma.$disconnect();
+  }
+}
+
+// Helper function to adjust workouts
+async function adjustWorkouts(baseUrl: string, userId: string, date: string) {
+  try {
+    const adjustmentResponse = await fetch(`${baseUrl}/api/training/adjust-workouts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': INTERNAL_API_KEY
+      },
+      body: JSON.stringify({
+        userId: userId,
+        date: date
+      })
+    });
+    
+    if (adjustmentResponse.ok) {
+      const adjustmentResult = await adjustmentResponse.json();
+      console.log(`Daily Sync: Successfully adjusted ${adjustmentResult.adjustedCount} workouts for user ${userId}`);
+      return adjustmentResult.adjustedCount;
+    } else {
+      const errorText = await adjustmentResponse.text();
+      console.error(`Daily Sync: Failed to adjust workouts for user ${userId}:`, errorText);
+      return 0;
+    }
+  } catch (error) {
+    console.error(`Daily Sync: Error adjusting workouts for user ${userId}:`, error);
+    return 0;
   }
 } 
