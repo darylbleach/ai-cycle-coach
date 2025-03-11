@@ -1,52 +1,68 @@
 /**
- * Clear NextAuth Session Storage Script
- * 
- * This script can be run in the browser console to clear all NextAuth-related
+ * Clear Session Storage Script
+ * ----------------------------
+ * This script clears all NextAuth related cookies and local/session
  * storage and cookies. This is useful when you change NEXTAUTH_SECRET or
- * encounter JWEDecryptionFailed errors.
+ * when you're experiencing authentication issues.
  * 
- * To use:
- * 1. Open browser DevTools (F12 or right-click and select "Inspect")
+ * Instructions:
+ * 1. Open your browser's developer console (F12 or right-click > Inspect)
  * 2. Go to the Console tab
  * 3. Copy and paste this entire script
  * 4. Press Enter to execute
- * 5. Refresh the page
+ * 5. Refresh the page and try logging in again
  */
 
-// Clear localStorage items related to NextAuth
-Object.keys(localStorage)
-  .filter(key => key.startsWith('next-auth'))
-  .forEach(key => {
-    console.log(`Clearing localStorage item: ${key}`);
-    localStorage.removeItem(key);
-  });
-
-// Clear sessionStorage items related to NextAuth
-Object.keys(sessionStorage)
-  .filter(key => key.startsWith('next-auth'))
-  .forEach(key => {
-    console.log(`Clearing sessionStorage item: ${key}`);
-    sessionStorage.removeItem(key);
-  });
-
-// Function to clear all cookies
-function clearAllCookies() {
+// Clear all cookies related to NextAuth
+function clearNextAuthCookies() {
   const cookies = document.cookie.split(';');
   
   for (let i = 0; i < cookies.length; i++) {
     const cookie = cookies[i];
     const eqPos = cookie.indexOf('=');
-    const name = eqPos > -1 ? cookie.substring(0, eqPos).trim() : cookie.trim();
+    const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
     
-    // Clear the cookie by setting its expiration date to the past
-    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
-    console.log(`Cleared cookie: ${name}`);
+    // Check if this is a NextAuth cookie
+    if (name.startsWith('next-auth') || name.includes('session-token')) {
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/;`;
+      console.log(`Cleared cookie: ${name}`);
+    }
   }
 }
 
-// Clear all cookies
-clearAllCookies();
+// Clear local storage items related to NextAuth
+function clearNextAuthLocalStorage() {
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && (key.startsWith('next-auth') || key.includes('session'))) {
+      localStorage.removeItem(key);
+      console.log(`Cleared localStorage item: ${key}`);
+    }
+  }
+}
 
-// Provide feedback
-console.log('All NextAuth sessions and cookies have been cleared.');
-console.log('Please refresh the page and log in again.'); 
+// Clear session storage items related to NextAuth
+function clearNextAuthSessionStorage() {
+  for (let i = 0; i < sessionStorage.length; i++) {
+    const key = sessionStorage.key(i);
+    if (key && (key.startsWith('next-auth') || key.includes('session'))) {
+      sessionStorage.removeItem(key);
+      console.log(`Cleared sessionStorage item: ${key}`);
+    }
+  }
+}
+
+// Run all cleanup functions
+function clearAllNextAuthData() {
+  console.log('Starting NextAuth session cleanup...');
+  
+  clearNextAuthCookies();
+  clearNextAuthLocalStorage();
+  clearNextAuthSessionStorage();
+  
+  console.log('NextAuth session cleanup complete!');
+  console.log('Please refresh the page and try logging in again.');
+}
+
+// Execute the cleanup
+clearAllNextAuthData(); 

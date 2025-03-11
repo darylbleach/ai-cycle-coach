@@ -15,20 +15,34 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 
+# Configure logging to file for debugging
+log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'scripts', 'debug')
+os.makedirs(log_dir, exist_ok=True)
+log_file = os.path.join(log_dir, f'garmin_sync_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
+
+# Set up file logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_file),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
+
 # Third-party imports - handle import errors gracefully
 try:
     from garminconnect import Garmin
     import garth
 except ImportError:
+    error_msg = "Missing required libraries. Please install garminconnect and garth."
+    logger.error(error_msg)
     print(json.dumps({
         "status": "error",
-        "error": "Missing required libraries. Please install garminconnect and garth."
+        "error": error_msg
     }))
     sys.exit(1)
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 def sync_garmin_data(email, token_path, date_str=None):
     """Sync health data from Garmin Connect for a specific date."""
@@ -52,6 +66,7 @@ def sync_garmin_data(email, token_path, date_str=None):
         
         # Determine token file path
         token_file = token_dir / f"{email}.json"
+        logger.info(f"Token file path: {token_file} (exists: {os.path.exists(token_file)})")
         
         # Initialize API client
         client = None
@@ -59,8 +74,11 @@ def sync_garmin_data(email, token_path, date_str=None):
         # First try to use garth for authentication (more modern approach)
         if os.path.exists(token_file):
             try:
+                logger.info(f"Reading token file: {token_file}")
                 with open(token_file, 'r') as f:
                     token_data = json.load(f)
+                
+                logger.info(f"Token file contents: {json.dumps(token_data, indent=2)}")
                 
                 # Check if we have garth token data
                 if 'garth_token' in token_data:
@@ -71,14 +89,21 @@ def sync_garmin_data(email, token_path, date_str=None):
                     client.garth = garth
                     logger.info("Using garth client for API access")
             except Exception as e:
-                logger.error(f"Error loading garth token: {e}")
+                logger.error(f"Error loading garth token: {str(e)}", exc_info=True)
         
         # Fall back to traditional login if garth failed
         if client is None:
             logger.info(f"Using traditional login for {email}")
-            client = Garmin(email)
-            client.login(tokenstore=str(token_file))
-            logger.info("Successfully logged in with traditional method")
+            try:
+                client = Garmin(email)
+                client.login(tokenstore=str(token_file))
+                logger.info("Successfully logged in with traditional method")
+            except Exception as e:
+                logger.error(f"Traditional login failed: {str(e)}", exc_info=True)
+                return {
+                    "status": "error",
+                    "error": f"Authentication failed: {str(e)}"
+                }
         
         # Retrieve health data
         data = {}

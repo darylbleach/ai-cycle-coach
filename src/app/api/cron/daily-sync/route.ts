@@ -8,9 +8,22 @@ import { authOptions } from '@/lib/auth';
 import { getServerSession } from 'next-auth/next';
 import { format, subDays } from 'date-fns';
 
+// Define an interface for the account structure
+interface GarminAccount {
+  providerAccountId: string;
+  userId: string;
+}
+
 // Force reload of the route
 const execAsync = promisify(exec);
-const prisma = new PrismaClient();
+let prisma: PrismaClient;
+
+try {
+  prisma = new PrismaClient();
+} catch (e) {
+  console.error("Error initializing Prisma client:", e);
+  // Will handle this in the route handler
+}
 
 // Use environment variable for Python path or fallback
 const PYTHON_PATH = process.env.PYTHON_PATH || path.join(process.cwd(), 'garmin-env/bin/python');
@@ -72,36 +85,73 @@ export async function GET(req: Request) {
     const syncDate = today.toISOString().split('T')[0];
     console.log(`Daily Sync: Syncing data for today's date ${syncDate}`);
     
-    // Get users to process - either from retry params or all Garmin accounts
-    let accountsToProcess = [];
+    // Check if prisma was successfully initialized
+    if (!prisma) {
+      console.error('Daily Sync: Prisma client is not initialized. Database connection failed.');
+      return NextResponse.json(
+        { 
+          message: 'Error in daily sync cron job', 
+          error: 'Database connection failed. Check DATABASE_URL environment variable.'
+        },
+        { status: 500 }
+      );
+    }
     
-    if (isRetry && retryUserIds.length > 0) {
-      // For retry, get only the specific users that need a retry
-      const accounts = await prisma.account.findMany({
-        where: {
-          provider: 'garmin',
-          userId: {
-            in: retryUserIds
+    // Get users to process - either from retry params or all Garmin accounts
+    let accountsToProcess: GarminAccount[] = [];
+    
+    try {
+      if (isRetry && retryUserIds.length > 0) {
+        // For retry, get only the specific users that need a retry
+        const accounts = await prisma.account.findMany({
+          where: {
+            provider: 'garmin',
+            userId: {
+              in: retryUserIds
+            }
+          },
+          select: {
+            providerAccountId: true,
+            userId: true,
           }
-        },
-        select: {
-          providerAccountId: true,
-          userId: true,
-        }
-      });
-      accountsToProcess = accounts;
-    } else {
-      // Get all users with connected Garmin accounts
-      const allAccounts = await prisma.account.findMany({
-        where: {
-          provider: 'garmin',
-        },
-        select: {
-          providerAccountId: true,
-          userId: true,
-        }
-      });
-      accountsToProcess = allAccounts;
+        });
+        accountsToProcess = accounts;
+      } else {
+        // Get all users with connected Garmin accounts
+        const allAccounts = await prisma.account.findMany({
+          where: {
+            provider: 'garmin',
+          },
+          select: {
+            providerAccountId: true,
+            userId: true,
+          }
+        });
+        accountsToProcess = allAccounts;
+      }
+    } catch (dbError) {
+      console.error('Daily Sync: Database error when fetching accounts:', dbError);
+      // Fall back to trying direct Python script if we can't get accounts from DB
+      accountsToProcess = [];
+      
+      // Check for token files in the token directory as a fallback
+      try {
+        const tokenFiles = fs.readdirSync(GARMIN_TOKEN_DIR)
+          .filter(file => file.endsWith('.json') && !file.includes('_cookies') && !file.includes('_tokens'));
+        
+        console.log(`Daily Sync: Found ${tokenFiles.length} token files in ${GARMIN_TOKEN_DIR}`);
+        
+        // Create fake account objects from token filenames
+        accountsToProcess = tokenFiles.map(file => {
+          const email = file.replace('.json', '');
+          return {
+            providerAccountId: email,
+            userId: email // No real user ID available, use email as fallback
+          };
+        });
+      } catch (fsError) {
+        console.error('Daily Sync: Error reading token directory:', fsError);
+      }
     }
     
     console.log(`Daily Sync: Found ${accountsToProcess.length} Garmin accounts to sync`);
