@@ -52,17 +52,16 @@ export async function POST(req: Request) {
       const tokenDir = process.env.GARMIN_TOKEN_DIR || './garmin-tokens';
       await fs.mkdir(tokenDir, { recursive: true });
       
-      // Store the password in a session file for use by the sync script
+      // Store the username in a session file for use by the sync script
       try {
         const sessionDir = `${tokenDir}/sessions`;
         await fs.mkdir(sessionDir, { recursive: true });
         
-        // Only save password if we have a userId
+        // Only save username if we have a userId (don't store passwords)
         if (userId) {
           const sessionFile = `${sessionDir}/${userId}.json`;
           const sessionData = {
             username,
-            password,
             timestamp: new Date().toISOString()
           };
           await fs.writeFile(sessionFile, JSON.stringify(sessionData, null, 2));
@@ -70,19 +69,19 @@ export async function POST(req: Request) {
         }
       } catch (e) {
         console.error(`Garmin Connect: Error caching session: ${e}`);
-        // Continue even if we can't cache the password
+        // Continue even if we can't cache the session info
       }
-      
-      // Create token directory if it doesn't exist
-      const tokenPath = path.join(tokenDir, username);
-      await fs.mkdir(path.dirname(tokenPath), { recursive: true });
       
       // Use environment variable for Python path or fallback
       const pythonPath = process.env.PYTHON_PATH || `${process.cwd()}/garmin-env/bin/python`;
-      const command = `${pythonPath} scripts/garmin_direct_auth.py "${username}" "${password}"`;
+      
+      // Try the advanced auth script first (more reliable)
+      console.log('Garmin Connect: Using advanced authentication script');
+      const advancedCommand = `${pythonPath} scripts/garmin_advanced_auth.py "${username}" "${password}" --clear-tokens`;
       
       // Execute the Python script
-      const { stdout, stderr } = await execAsync(command);
+      console.log(`Garmin Connect: Executing auth script`);
+      const { stdout, stderr } = await execAsync(advancedCommand);
       
       if (stderr) {
         console.error(`Garmin Connect: Script stderr: ${stderr}`);
@@ -102,7 +101,7 @@ export async function POST(req: Request) {
       
       console.log(`Garmin Connect: Authentication result: ${result.status}`);
       
-      if (result.status !== 'success') {
+      if (result.status !== 'success' && result.status !== 'warning') {
         console.error(`Garmin Connect: Authentication failed: ${result.message}`);
         
         // Check for specific error types
@@ -116,10 +115,44 @@ export async function POST(req: Request) {
           );
         }
         
-        return NextResponse.json(
-          { message: result.message },
-          { status: 400 }
-        );
+        // Fall back to direct_auth script if advanced auth fails
+        console.log('Garmin Connect: Trying fallback authentication method');
+        const fallbackCommand = `${pythonPath} scripts/garmin_direct_auth.py "${username}" "${password}"`;
+        
+        try {
+          const { stdout: fallbackStdout, stderr: fallbackStderr } = await execAsync(fallbackCommand);
+          
+          if (fallbackStderr) {
+            console.error(`Garmin Connect: Fallback stderr: ${fallbackStderr}`);
+          }
+          
+          let fallbackResult;
+          try {
+            fallbackResult = JSON.parse(fallbackStdout);
+          } catch (e) {
+            console.error(`Garmin Connect: Error parsing fallback output: ${e}`);
+            return NextResponse.json(
+              { message: result.message || 'Authentication failed with both methods' },
+              { status: 400 }
+            );
+          }
+          
+          if (fallbackResult.status !== 'success') {
+            return NextResponse.json(
+              { message: fallbackResult.message || 'Authentication failed with both methods' },
+              { status: 400 }
+            );
+          }
+          
+          console.log('Garmin Connect: Fallback authentication successful');
+          result = fallbackResult;
+        } catch (fallbackError) {
+          console.error(`Garmin Connect: Fallback auth failed: ${fallbackError}`);
+          return NextResponse.json(
+            { message: result.message || 'Authentication failed with all methods' },
+            { status: 400 }
+          );
+        }
       }
       
       // Authentication successful, store the connection in the database
@@ -172,6 +205,24 @@ export async function POST(req: Request) {
       }
       
       console.log(`Garmin Connect: Successfully connected Garmin account for user ${userId}`);
+      
+      // Try to sync immediately after connecting to get initial data
+      try {
+        const syncCommand = `${pythonPath} scripts/garmin_direct_sync.py "${username}" "${tokenDir}"`;
+        console.log(`Garmin Connect: Running initial sync`);
+        
+        // Run in background, don't wait for it
+        exec(syncCommand, (error, stdout, stderr) => {
+          if (error) {
+            console.error(`Garmin Connect: Initial sync error: ${error}`);
+          } else {
+            console.log(`Garmin Connect: Initial sync completed`);
+          }
+        });
+      } catch (syncError) {
+        console.error(`Garmin Connect: Error starting initial sync: ${syncError}`);
+        // Continue even if initial sync fails
+      }
       
       // Return success
       return NextResponse.json({
