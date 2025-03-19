@@ -11,6 +11,7 @@ function ErrorContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [errorMessage, setErrorMessage] = useState<string>('An authentication error occurred')
+  const [solution, setSolution] = useState<string | null>(null)
 
   useEffect(() => {
     const error = searchParams.get('error')
@@ -27,8 +28,28 @@ function ErrorContent() {
         case 'AccessDenied':
           setErrorMessage('Access denied. You do not have permission to access this resource.')
           break
+        case 'OAuthSignin':
+          setErrorMessage('There was a problem initiating the Google sign-in process.')
+          setSolution('This may be due to an issue with your Google OAuth configuration. Make sure your redirect URLs are set up correctly in the Google Cloud Console.')
+          break
         case 'OAuthCallback':
-          setErrorMessage('There was a problem with the authentication service. Please try again.')
+          setErrorMessage('There was a problem with the Google authentication callback.')
+          setSolution('This often happens when the OAuth client ID or secret is incorrect, or when the redirect URL in Google Cloud Console doesn\'t match your application URL.')
+          break
+        case 'OAuthAccountNotLinked':
+          setErrorMessage('Your Google account is not linked to an existing account.')
+          setSolution('If you\'ve previously signed up with email and password, please sign in with those credentials first.')
+          break
+        case 'Configuration':
+          setErrorMessage('There is a server configuration issue with the authentication system.')
+          setSolution('This is likely due to missing or incorrect environment variables. Please contact support.')
+          break
+        case 'invalid_client':
+          setErrorMessage('Google OAuth client not found or invalid client configuration.')
+          setSolution('This error usually occurs when the Google OAuth client ID is incorrect or the application is not properly registered in Google Cloud Console.')
+          break
+        case 'Verification':
+          setErrorMessage('The verification token has expired or is invalid')
           break
         default:
           setErrorMessage(`Authentication error: ${error}`)
@@ -67,6 +88,9 @@ function ErrorContent() {
                 <h3 className="text-sm font-medium text-red-800">Authentication Failed</h3>
                 <div className="mt-2 text-sm text-red-700">
                   <p>{errorMessage}</p>
+                  {solution && (
+                    <p className="mt-2 font-medium">Possible solution: {solution}</p>
+                  )}
                 </div>
               </div>
             </div>

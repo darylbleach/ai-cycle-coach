@@ -6,11 +6,29 @@ import GoogleProvider from 'next-auth/providers/google';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
 
-const prisma = new PrismaClient();
+// Create prisma client with better error handling
+let prisma: PrismaClient;
+
+try {
+  // Attempt to create a new PrismaClient instance
+  prisma = new PrismaClient({
+    log: process.env.DEBUG === 'true' ? ['query', 'error', 'warn'] : ['error'],
+  });
+
+  // Test connection
+  prisma.$connect()
+    .then(() => console.log('Database connection established'))
+    .catch(e => console.error('Failed to connect to database:', e));
+    
+} catch (error) {
+  console.error('Failed to initialize Prisma client:', error);
+  // Provide a fallback if needed
+  prisma = new PrismaClient();
+}
 
 // Determine if we're in production
 const isProduction = process.env.NODE_ENV === 'production';
-const NEXTAUTH_URL = process.env.NEXTAUTH_URL || (isProduction ? 'https://yourdomain.com' : 'http://localhost:3000');
+const NEXTAUTH_URL = process.env.NEXTAUTH_URL || (isProduction ? 'https://yourdomain.com' : 'http://localhost:3001');
 
 // Ensure we have a valid NEXTAUTH_SECRET
 if (!process.env.NEXTAUTH_SECRET) {
