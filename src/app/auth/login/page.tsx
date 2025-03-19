@@ -16,6 +16,48 @@ function LoginContent() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // Check for error in URL (from OAuth redirect)
+  useEffect(() => {
+    const errorParam = searchParams.get('error')
+    if (errorParam) {
+      let errorMessage = 'An error occurred during sign in'
+      
+      // Provide more detailed messages for common errors
+      switch (errorParam) {
+        case 'OAuthSignin':
+          errorMessage = 'Error starting the OAuth sign in process'
+          break
+        case 'OAuthCallback':
+          errorMessage = 'Error during the OAuth callback'
+          break
+        case 'OAuthCreateAccount':
+          errorMessage = 'Error creating a user from the OAuth provider'
+          break
+        case 'EmailCreateAccount':
+          errorMessage = 'Error creating a user from email provider'
+          break
+        case 'Callback':
+          errorMessage = 'Error in the OAuth callback handler'
+          break
+        case 'AccessDenied':
+          errorMessage = 'You do not have permission to sign in'
+          break
+        case 'Verification':
+          errorMessage = 'The verification token has expired or is invalid'
+          break
+        default:
+          errorMessage = `Authentication error: ${errorParam}`
+      }
+      
+      setError(errorMessage)
+      
+      // Clean up the URL
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState({}, document.title, window.location.pathname)
+      }
+    }
+  }, [searchParams])
+
   // Security check - detect and handle credentials in URL
   useEffect(() => {
     // Check if email or password are in URL parameters
@@ -49,6 +91,7 @@ function LoginContent() {
       })
 
       if (result?.error) {
+        console.error('Login error:', result.error)
         setError('Invalid email or password')
         setLoading(false)
         return
@@ -57,6 +100,7 @@ function LoginContent() {
       router.push('/dashboard')
       router.refresh()
     } catch (error) {
+      console.error('Login exception:', error)
       setError('Something went wrong. Please try again.')
       setLoading(false)
     }
@@ -64,7 +108,13 @@ function LoginContent() {
   
   const handleGoogleSignIn = () => {
     setError(null)
-    signIn('google', { callbackUrl: '/dashboard' })
+    setLoading(true)
+    
+    // Use redirect: true to handle the OAuth flow properly
+    signIn('google', { 
+      callbackUrl: '/dashboard',
+      redirect: true 
+    })
   }
 
   return (
