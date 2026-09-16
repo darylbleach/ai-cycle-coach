@@ -39,7 +39,7 @@ https://github.com/darylbleach/ai-cycle-coach
 | Program | Why it fits | Apply |
 | --- | --- | --- |
 | [Vercel for Open Source](https://vercel.com/open-source-program) | App already has `vercel.json` and is a Next.js project | Seasonal application |
-| [Netlify Open Source Plan](https://opensource-form.netlify.com/) | Hosting alternative; requires a Netlify badge on the site | Form |
+| [Netlify Open Source Plan](https://opensource-form.netlify.com/) | Hosting alternative; homepage and README include “This site is powered by Netlify” | Form |
 | [Sentry for Open Source](https://sentry.io/for/open-source/) | Error monitoring for a public MIT project | Sentry OSS page |
 | [Neon Open Source Program](https://neon.com/programs/open-source) | App uses PostgreSQL via Prisma | Neon program page |
 | [PostHog for Open Source](https://posthog.com/startups) | Analytics/replay credits for small OSS projects | Sign up, then apply |
@@ -50,6 +50,7 @@ https://github.com/darylbleach/ai-cycle-coach
 | [JetBrains OSS](https://www.jetbrains.com/shop/eform/opensource) | IDE licenses for core maintainers | Form |
 | [OpenAI Codex for OSS](https://openai.com/form/codex-for-oss/) | Maintainer access; rolling review | Form |
 | [DigitalOcean OSS credits](mailto:opensource@digitalocean.com) | Hosting credits; logo on the site; 100+ stars for paid tiers | Email |
+| [BrowserStack for Open Source](https://www.browserstack.com/open-source) | Cross-browser testing; README must include the exact sentence `This project is tested with BrowserStack.` | Re-apply after that line is on the default branch |
 
 ## Programs that need more traction first
 

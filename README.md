@@ -6,6 +6,10 @@
 An open-source, AI-powered cycling coach that creates personalized training
 plans from Garmin Connect fitness and recovery data.
 
+This project is tested with BrowserStack.
+
+This site is powered by Netlify.
+
 **Repository:** [github.com/darylbleach/ai-cycle-coach](https://github.com/darylbleach/ai-cycle-coach)
 
 ## Features
@@ -115,6 +119,13 @@ Or paste the repo URL into https://www.ossperks.com/check
 
 Application links, program notes, and post-merge steps are in
 [docs/OSS_PERKS.md](docs/OSS_PERKS.md).
+
+## Testing
+
+This project is tested with BrowserStack.
+
+Cross-browser checks cover the Next.js UI (auth, dashboard, training calendar,
+and settings) on desktop and mobile browsers.
 
 ## Contributing
 
