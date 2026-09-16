@@ -7,6 +7,7 @@ import fs from 'fs';
 import { authOptions } from '@/lib/auth';
 import { getServerSession } from 'next-auth/next';
 import { format, subDays } from 'date-fns';
+import { getCronApiKey, requestMatchesCronApiKey } from '@/lib/cron-auth';
 
 // Define an interface for the account structure
 interface GarminAccount {
@@ -29,10 +30,7 @@ try {
 const PYTHON_PATH = process.env.PYTHON_PATH || path.join(process.cwd(), 'garmin-env/bin/python');
 const GARMIN_TOKEN_DIR = process.env.GARMIN_TOKEN_DIR || path.join(process.cwd(), 'garmin-tokens');
 
-// Get API keys from environment
-const CRON_API_KEY = process.env.CRON_API_KEY || 'default_cron_api_key_for_dev';
-// Optional key for workout adjustments
-const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'your_internal_api_key_for_workout_adjustment';
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY;
 
 // Maximum number of retry attempts for each user (8 retries = 4 hours total)
 const MAX_RETRY_ATTEMPTS = 8;
@@ -63,11 +61,10 @@ export async function GET(req: Request) {
       console.log('Daily Sync: Starting cron job for daily Garmin data sync');
     }
     
-    // Check for API key authorization
+    const cronApiKey = getCronApiKey();
     const apiKey = req.headers.get('X-Cron-API-Key') || req.headers.get('x-cron-api-key');
-    if (apiKey !== CRON_API_KEY) {
-      console.error('Daily Sync: Unauthorized access attempt with incorrect API key');
-      console.error(`Daily Sync: Received API key: "${apiKey}", Expected: "${CRON_API_KEY}"`);
+    if (!cronApiKey || !requestMatchesCronApiKey(apiKey)) {
+      console.error('Daily Sync: Unauthorized access attempt');
       return NextResponse.json(
         { message: 'Unauthorized' },
         { status: 401 }
@@ -233,7 +230,7 @@ export async function GET(req: Request) {
               // If we have a valid training readiness score, adjust today's workouts
               if (syncResult.data?.trainingReadiness) {
                 console.log(`Daily Sync: Adjusting workouts for user ${account.userId} based on training readiness score: ${syncResult.data.trainingReadiness}`);
-                await adjustWorkouts(baseUrl, account.userId, syncDate);
+                await adjustWorkouts(baseUrl, account.userId, syncDate, INTERNAL_API_KEY || cronApiKey);
                 results.workoutsAdjusted++;
               }
             } catch (parseError: unknown) {
@@ -250,7 +247,7 @@ export async function GET(req: Request) {
               headers: {
                 'Content-Type': 'application/json',
                 // This is a special header to authorize this request as if it were from the user
-                'X-Cron-API-Key': CRON_API_KEY,
+                'X-Cron-API-Key': cronApiKey,
                 'X-User-ID': account.userId  // Add user ID for server-side auth
               },
               body: JSON.stringify({
@@ -284,7 +281,7 @@ export async function GET(req: Request) {
             // If we have a valid training readiness score, adjust today's workouts
             if (syncResult.data?.trainingReadiness) {
               console.log(`Daily Sync: Adjusting workouts for user ${account.userId} based on training readiness score: ${syncResult.data.trainingReadiness}`);
-              await adjustWorkouts(baseUrl, account.userId, syncDate);
+              await adjustWorkouts(baseUrl, account.userId, syncDate, INTERNAL_API_KEY || cronApiKey);
               results.workoutsAdjusted++;
             }
           }
@@ -328,7 +325,7 @@ export async function GET(req: Request) {
           const retryResponse = await fetch(retryUrl.toString(), {
             method: 'GET',
             headers: {
-              'X-Cron-API-Key': CRON_API_KEY
+              'X-Cron-API-Key': cronApiKey
             }
           });
           
@@ -359,13 +356,13 @@ export async function GET(req: Request) {
 }
 
 // Helper function to adjust workouts
-async function adjustWorkouts(baseUrl: string, userId: string, date: string) {
+async function adjustWorkouts(baseUrl: string, userId: string, date: string, apiKey: string) {
   try {
     const adjustmentResponse = await fetch(`${baseUrl}/api/training/adjust-workouts`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': INTERNAL_API_KEY
+        'X-API-Key': apiKey
       },
       body: JSON.stringify({
         userId: userId,

@@ -1,6 +1,12 @@
-# AI Cycling Coach
+# AI Cycle Coach
 
-An AI-powered cycling coach application that creates personalized training plans based on your fitness data from Garmin Connect.
+[![License: MIT](https://img.shields.io/github/license/darylbleach/ai-cycle-coach)](LICENSE)
+[![OSS Perks](https://img.shields.io/badge/OSS%20Perks-check%20eligibility-0ea5e9)](https://www.ossperks.com/check)
+
+An open-source, AI-powered cycling coach that creates personalized training
+plans from Garmin Connect fitness and recovery data.
+
+**Repository:** [github.com/darylbleach/ai-cycle-coach](https://github.com/darylbleach/ai-cycle-coach)
 
 ## Features
 
@@ -27,40 +33,50 @@ An AI-powered cycling coach application that creates personalized training plans
 
 - Node.js 18+ and npm
 - PostgreSQL database
+- Python 3.8+ if you want Garmin Connect sync
 
 ### Installation
 
 1. Clone the repository:
-   ```
-   git clone https://github.com/yourusername/ai-coach.git
-   cd ai-coach
+
+   ```bash
+   git clone https://github.com/darylbleach/ai-cycle-coach.git
+   cd ai-cycle-coach
    ```
 
 2. Install dependencies:
-   ```
+
+   ```bash
    npm install
    ```
 
-3. Set up environment variables:
-   Create a `.env` file in the root directory with the following variables:
-   ```
+3. Copy `.env.example` to `.env` and set the variables. Generate your own
+   secrets; do not reuse example values.
+
+   ```bash
    DATABASE_URL="postgresql://username:password@localhost:5432/ai_coach?schema=public"
    NEXTAUTH_URL="http://localhost:3000"
    NEXTAUTH_SECRET="your-secret-key"
+   CRON_API_KEY="your-secure-cron-api-key"
    OPENAI_API_KEY="your-openai-api-key"
    ```
 
 4. Set up the database:
-   ```
+
+   ```bash
    npx prisma migrate dev --name init
    ```
 
 5. Start the development server:
-   ```
+
+   ```bash
    npm run dev
    ```
 
 6. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for a fuller local setup, including the
+optional Garmin Python environment.
 
 ## Usage
 
@@ -84,6 +100,31 @@ The app features an automatic daily adaptation system that works as follows:
 
 This ensures that your training is optimally balanced between challenge and recovery, adapting to your body's daily state to maximize training effectiveness while preventing overtraining.
 
+## Open source perks
+
+This project is public and MIT-licensed so it can qualify for maintainer
+programs listed on [OSS Perks](https://www.ossperks.com/).
+
+Check current eligibility:
+
+```bash
+npx ossperks check --repo darylbleach/ai-cycle-coach
+```
+
+Or paste the repo URL into https://www.ossperks.com/check
+
+Application links, program notes, and post-merge steps are in
+[docs/OSS_PERKS.md](docs/OSS_PERKS.md).
+
+## Contributing
+
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and
+the [Code of Conduct](CODE_OF_CONDUCT.md) before opening a pull request.
+
+## Security
+
+Please report vulnerabilities privately. See [SECURITY.md](SECURITY.md).
+
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the [MIT License](LICENSE).

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { format, parseISO } from 'date-fns';
+import { requestMatchesCronApiKey } from '@/lib/cron-auth';
 
 const prisma = new PrismaClient();
 
@@ -14,10 +15,13 @@ export async function POST(req: Request) {
     
     // Check for API key in authorization header (same as used by cron job)
     const apiKey = req.headers.get('X-API-Key');
-    const CRON_API_KEY = process.env.CRON_API_KEY || 'your-secure-api-key';
-    
-    if (apiKey !== CRON_API_KEY) {
-      console.error('Workout Adjustment: Unauthorized access attempt with incorrect API key');
+    const internalKey = process.env.INTERNAL_API_KEY?.trim();
+    const authorized =
+      requestMatchesCronApiKey(apiKey) ||
+      Boolean(internalKey && apiKey && apiKey === internalKey);
+
+    if (!authorized) {
+      console.error('Workout Adjustment: Unauthorized access attempt');
       return NextResponse.json(
         { message: 'Unauthorized' },
         { status: 401 }
