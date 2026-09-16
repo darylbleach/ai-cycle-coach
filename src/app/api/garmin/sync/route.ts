@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';
+import { requestMatchesCronApiKey } from '@/lib/cron-auth';
 
 const prisma = new PrismaClient();
 
@@ -13,9 +14,6 @@ const execAsync = promisify(exec);
 
 // Tell Next.js this is a dynamic route that should not be statically generated
 export const dynamic = 'force-dynamic';
-
-// This should be a secret key used by the cron job
-const CRON_API_KEY = process.env.CRON_API_KEY || 'your-secure-cron-api-key';
 
 // Function to get sample data for development
 function getSampleData() {
@@ -46,7 +44,7 @@ export async function POST(req: Request) {
     console.log('Garmin Sync: Starting sync process');
     
     // Check if this is a cron job request
-    const isCronRequest = req.headers.get('X-Cron-API-Key') === CRON_API_KEY;
+    const isCronRequest = requestMatchesCronApiKey(req.headers.get('X-Cron-API-Key'));
     let userId: string | undefined;
     let workoutsAdjusted = 0; // Initialize the variable at the top level
     

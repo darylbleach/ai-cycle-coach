@@ -24,6 +24,7 @@ out/
 build/
 dist/
 logs/
+garmin-env/
 
 # Debug
 npm-debug.log*

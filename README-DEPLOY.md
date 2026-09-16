@@ -37,6 +37,8 @@ CRON_API_KEY=<your-cron-api-key>
 INTERNAL_API_KEY=<your-internal-api-key-for-workout-adjustment>
 ```
 
+Set `CRON_API_KEY` in the App Platform environment. Do not commit the real value to the repository.
+
 ## Deployment Steps
 
 1. In your DigitalOcean App Platform:
