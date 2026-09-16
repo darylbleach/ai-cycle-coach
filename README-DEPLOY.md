@@ -8,7 +8,9 @@ When deploying to DigitalOcean, you must set the following environment variables
 ```
 DATABASE_URL=postgresql://username:password@hostname:port/database?sslmode=require
 ```
-Use your actual DigitalOcean database credentials here.
+Use your actual database credentials here. [Neon](https://neon.tech) is the
+recommended hosted Postgres option for this project; any Postgres provider
+that gives you a `DATABASE_URL` will work.
 
 ### Authentication
 ```
