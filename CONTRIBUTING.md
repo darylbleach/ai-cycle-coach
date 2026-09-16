@@ -18,7 +18,7 @@ By participating, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 - Node.js 18+ and npm
 - Python 3.8+ (for Garmin Connect sync)
-- PostgreSQL
+- PostgreSQL (local, or hosted on [Neon](https://neon.tech))
 
 ### Setup
 
@@ -38,6 +38,11 @@ By participating, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 3. Copy `.env.example` to `.env` and fill in local values. Never commit real
    secrets. Generate strong values for `NEXTAUTH_SECRET`, `CRON_API_KEY`, and
    `INTERNAL_API_KEY`.
+
+   The app will not start without `DATABASE_URL`. Neon is the recommended
+   hosted Postgres option: create a project at
+   [console.neon.tech](https://console.neon.tech) and paste the connection
+   string into `.env`.
 
 4. Set up the database:
 

@@ -36,7 +36,7 @@ This site is powered by Netlify.
 ### Prerequisites
 
 - Node.js 18+ and npm
-- PostgreSQL database
+- A PostgreSQL database (local Postgres, or a hosted provider such as [Neon](https://neon.tech))
 - Python 3.8+ if you want Garmin Connect sync
 
 ### Installation
@@ -57,8 +57,17 @@ This site is powered by Netlify.
 3. Copy `.env.example` to `.env` and set the variables. Generate your own
    secrets; do not reuse example values.
 
+   A Postgres connection is **required** to run the app. For hosted Postgres,
+   [Neon](https://neon.tech) is the recommended option:
+
+   1. Create a project at [console.neon.tech](https://console.neon.tech)
+   2. Copy the connection string from the Neon dashboard
+   3. Set it as `DATABASE_URL` in `.env` (include `sslmode=require`)
+
+   Local Postgres also works. Example values:
+
    ```bash
-   DATABASE_URL="postgresql://username:password@localhost:5432/ai_coach?schema=public"
+   DATABASE_URL="postgresql://username:password@ep-example.region.aws.neon.tech/neondb?sslmode=require"
    NEXTAUTH_URL="http://localhost:3000"
    NEXTAUTH_SECRET="your-secret-key"
    CRON_API_KEY="your-secure-cron-api-key"
