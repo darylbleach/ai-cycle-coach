@@ -68,6 +68,14 @@ export default async function Home() {
           </div>
         </div>
       </div>
+      <p className="mb-10 px-4 text-center text-sm text-gray-500">
+        <a
+          href="https://www.netlify.com/"
+          className="underline decoration-gray-300 underline-offset-2 hover:text-gray-700"
+        >
+          This site is powered by Netlify
+        </a>
+      </p>
     </main>
   )
 } 
